@@ -1,196 +1,94 @@
+using Itmo.ObjectOrientedProgramming.Lab5.Application;
 using Itmo.ObjectOrientedProgramming.Lab5.Application.Application.UseCases.Accounts;
 using Itmo.ObjectOrientedProgramming.Lab5.Application.Application.UseCases.Operations;
-using Itmo.ObjectOrientedProgramming.Lab5.Application.Application.UseCases.Sessions;
 using Itmo.ObjectOrientedProgramming.Lab5.Application.Dto;
 using Itmo.ObjectOrientedProgramming.Lab5.WebApi.Models.Requests;
 using Itmo.ObjectOrientedProgramming.Lab5.WebApi.Models.Responses;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Itmo.ObjectOrientedProgramming.Lab5.WebApi.Controllers;
 
 [ApiController]
-[Route("api/[controller]")]
-public class OperationsController : ControllerBase
+[Authorize(Roles = "user")]
+[Route("api/accounts/me")]
+public sealed class OperationsController(
+    BankingService banking,
+    GetBalanceService balance,
+    GetHistoryService history,
+    ILogger<OperationsController> logger) : ControllerBase
 {
-    private readonly DepositService _deposit;
-    private readonly WithdrawService _withdraw;
-    private readonly GetHistoryService _history;
-    private readonly GetBalanceService _getBalance;
-    private readonly CheckSessionService _checkSession;
-
-    public OperationsController(
-        DepositService deposit,
-        WithdrawService withdraw,
-        GetHistoryService history,
-        GetBalanceService getBalance,
-        CheckSessionService checkSession)
-    {
-        _deposit = deposit;
-        _withdraw = withdraw;
-        _history = history;
-        _getBalance = getBalance;
-        _checkSession = checkSession;
-    }
-
-    [HttpPost("deposit")]
-    public async Task<ActionResult<BalanceResponse>> DepositAsync(
-        [FromBody] DepositRequest request,
-        [FromHeader(Name = "X-Session-Key")] string? sessionKeyHeader,
-        [FromHeader(Name = "X-Account-Number")] string? accountNumberHeader)
-    {
-        if (string.IsNullOrWhiteSpace(sessionKeyHeader))
-            return Unauthorized(new { error = "X-Session-Key header is required" });
-
-        if (!Guid.TryParse(sessionKeyHeader, out Guid sessionKey))
-            return BadRequest(new { error = "Invalid session key format" });
-
-        CheckSessionService.CheckSessionResult sessionCheck =
-            await _checkSession.ValidateUserSessionAsync(sessionKey);
-
-        switch (sessionCheck)
-        {
-            case CheckSessionService.CheckSessionResult.InvalidSession:
-                return Unauthorized(new { error = "Invalid session" });
-            case CheckSessionService.CheckSessionResult.AccessDenied:
-                return Forbid();
-            case CheckSessionService.CheckSessionResult.Success:
-                break;
-        }
-
-        if (string.IsNullOrWhiteSpace(accountNumberHeader))
-            return BadRequest(new { error = "X-Account-Number header is required" });
-
-        DepositResultDto result =
-            await _deposit.DepositAsync(accountNumberHeader, request.Amount);
-
-        return result switch
-        {
-            DepositResultDto.Success success =>
-                Ok(new BalanceResponse(success.BalanceAfter)),
-            DepositResultDto.AccountNotFound =>
-                NotFound(new { error = "Account not found" }),
-            DepositResultDto.InvalidAmount =>
-                BadRequest(new { error = "Invalid amount" }),
-            _ => BadRequest(),
-        };
-    }
-
-    [HttpPost("withdraw")]
-    public async Task<ActionResult<BalanceResponse>> WithdrawAsync(
-        [FromBody] WithdrawRequest request,
-        [FromHeader(Name = "X-Session-Key")] string? sessionKeyHeader,
-        [FromHeader(Name = "X-Account-Number")] string? accountNumberHeader)
-    {
-        if (string.IsNullOrWhiteSpace(sessionKeyHeader))
-            return Unauthorized(new { error = "X-Session-Key header is required" });
-
-        if (!Guid.TryParse(sessionKeyHeader, out Guid sessionKey))
-            return BadRequest(new { error = "Invalid session key format" });
-
-        CheckSessionService.CheckSessionResult sessionCheck =
-            await _checkSession.ValidateUserSessionAsync(sessionKey);
-
-        switch (sessionCheck)
-        {
-            case CheckSessionService.CheckSessionResult.InvalidSession:
-                return Unauthorized(new { error = "Invalid session" });
-            case CheckSessionService.CheckSessionResult.AccessDenied:
-                return Forbid();
-            case CheckSessionService.CheckSessionResult.Success:
-                break;
-        }
-
-        if (string.IsNullOrWhiteSpace(accountNumberHeader))
-            return BadRequest(new { error = "X-Account-Number header is required" });
-
-        WithDrawResultDto result =
-            await _withdraw.WithdrawAsync(accountNumberHeader, request.Amount);
-
-        return result switch
-        {
-            WithDrawResultDto.Success success =>
-                Ok(new BalanceResponse(success.BalanceAfter)),
-            WithDrawResultDto.InvalidAmount =>
-                BadRequest(new { error = "Insufficient funds" }),
-            _ => BadRequest(),
-        };
-    }
-
-    [HttpGet("history")]
-    public async Task<ActionResult<IReadOnlyList<TransactionHistoryItemResponse>>> GetHistoryAsync(
-        [FromHeader(Name = "X-Session-Key")] string? sessionKeyHeader,
-        [FromHeader(Name = "X-Account-Number")] string? accountNumberHeader)
-    {
-        if (string.IsNullOrWhiteSpace(sessionKeyHeader))
-            return Unauthorized(new { error = "X-Session-Key header is required" });
-
-        if (!Guid.TryParse(sessionKeyHeader, out Guid sessionKey))
-            return BadRequest(new { error = "Invalid session key format" });
-
-        CheckSessionService.CheckSessionResult sessionCheck =
-            await _checkSession.ValidateUserSessionAsync(sessionKey);
-
-        switch (sessionCheck)
-        {
-            case CheckSessionService.CheckSessionResult.InvalidSession:
-                return Unauthorized(new { error = "Invalid session" });
-            case CheckSessionService.CheckSessionResult.AccessDenied:
-                return Forbid();
-            case CheckSessionService.CheckSessionResult.Success:
-                break;
-        }
-
-        if (string.IsNullOrWhiteSpace(accountNumberHeader))
-            return BadRequest(new { error = "X-Account-Number header is required" });
-
-        IReadOnlyList<TransactionDto> history =
-            await _history.GetByAccountAsync(accountNumberHeader);
-
-        TransactionHistoryItemResponse[] response = history
-            .Select(tx => new TransactionHistoryItemResponse(
-                tx.Id,
-                tx.AccountNumber,
-                tx.Type,
-                tx.Amount,
-                tx.OccurredAtUtc,
-                tx.BalanceAfter))
-            .ToArray();
-
-        return Ok(response);
-    }
+    private string Subject => User.FindFirst("sub")!.Value;
 
     [HttpGet("balance")]
-    public async Task<ActionResult<BalanceResponse>> GetBalanceAsync(
-        [FromHeader(Name = "X-Session-Key")] string? sessionKeyHeader,
-        [FromHeader(Name = "X-Account-Number")] string? accountNumberHeader)
+    public async Task<ActionResult<BalanceResponse>> GetBalanceAsync(CancellationToken ct)
     {
-        if (string.IsNullOrWhiteSpace(sessionKeyHeader))
-            return Unauthorized(new { error = "X-Session-Key header is required" });
+        AccountAccessResult<AccountDto> result = await balance.GetAsync(Subject, ct);
+        return result.Status == AccountAccessStatus.Success
+            ? Ok(new BalanceResponse(result.Value!.Balance))
+            : AccessProblem(result.Status);
+    }
 
-        if (!Guid.TryParse(sessionKeyHeader, out Guid sessionKey))
-            return BadRequest(new { error = "Invalid session key format" });
+    [HttpGet("transactions")]
+    public async Task<ActionResult<IReadOnlyList<TransactionHistoryItemResponse>>> GetHistoryAsync(
+        [FromQuery] int offset = 0, [FromQuery] int limit = 50, CancellationToken ct = default)
+    {
+        if (offset < 0 || limit is < 1 or > 100)
+            return Problem(statusCode: 400, title: "Invalid pagination parameters");
 
-        CheckSessionService.CheckSessionResult sessionCheck =
-            await _checkSession.ValidateUserSessionAsync(sessionKey);
+        AccountAccessResult<IReadOnlyList<TransactionDto>> result = await history.GetAsync(Subject, offset, limit, ct);
+        if (result.Status != AccountAccessStatus.Success) return AccessProblem(result.Status);
 
-        switch (sessionCheck)
+        return Ok(result.Value!.Select(x => new TransactionHistoryItemResponse(
+            x.Id, x.OperationId, x.AccountNumber, x.Type, x.Amount, x.OccurredAtUtc, x.BalanceAfter)).ToArray());
+    }
+
+    [HttpPost("deposits")]
+    public Task<ActionResult<MoneyOperationResponse>> DepositAsync([FromBody] DepositRequest request,
+        [FromHeader(Name = "Idempotency-Key")] string? key, CancellationToken ct) =>
+        ExecuteAsync("deposit", () => banking.DepositAsync(Subject, request.Amount, key, ct));
+
+    [HttpPost("withdrawals")]
+    public Task<ActionResult<MoneyOperationResponse>> WithdrawAsync([FromBody] WithdrawRequest request,
+        [FromHeader(Name = "Idempotency-Key")] string? key, CancellationToken ct) =>
+        ExecuteAsync("withdrawal", () => banking.WithdrawAsync(Subject, request.Amount, key, request.Pin, ct));
+
+    [HttpPost("transfers")]
+    public Task<ActionResult<MoneyOperationResponse>> TransferAsync([FromBody] TransferRequest request,
+        [FromHeader(Name = "Idempotency-Key")] string? key, CancellationToken ct) =>
+        ExecuteAsync("transfer", () => banking.TransferAsync(Subject, request.TargetAccountNumber,
+            request.Amount, key, request.Pin, ct));
+
+    private async Task<ActionResult<MoneyOperationResponse>> ExecuteAsync(string kind,
+        Func<Task<MoneyOperationResult>> action)
+    {
+        MoneyOperationResult result = await action();
+        logger.LogInformation("Financial operation {Kind} result {Status} {OperationId}",
+            kind, result.Status, result.OperationId);
+        if (result.Status == MoneyOperationStatus.Success)
         {
-            case CheckSessionService.CheckSessionResult.InvalidSession:
-                return Unauthorized(new { error = "Invalid session" });
-            case CheckSessionService.CheckSessionResult.AccessDenied:
-                return Forbid();
-            case CheckSessionService.CheckSessionResult.Success:
-                break;
+            return Ok(new MoneyOperationResponse(result.OperationId!.Value, result.BalanceAfter!.Value));
         }
 
-        if (string.IsNullOrWhiteSpace(accountNumberHeader))
-            return BadRequest(new { error = "X-Account-Number header is required" });
-
-        AccountDto? account = await _getBalance.GetByNumberAsync(accountNumberHeader);
-
-        if (account is null)
-            return NotFound(new { error = "Account not found" });
-
-        return Ok(new BalanceResponse(account.Balance));
+        return result.Status switch
+        {
+            MoneyOperationStatus.InvalidAmount => Problem(statusCode: 400, title: "Invalid amount"),
+            MoneyOperationStatus.InvalidIdempotencyKey => Problem(statusCode: 400, title: "Idempotency-Key is required"),
+            MoneyOperationStatus.InsufficientFunds => Problem(statusCode: 409, title: "Insufficient funds"),
+            MoneyOperationStatus.SameAccount => Problem(statusCode: 400, title: "Cannot transfer to the same account"),
+            MoneyOperationStatus.IdempotencyConflict => Problem(statusCode: 409, title: "Idempotency key conflict"),
+            MoneyOperationStatus.AccountNotFound => Problem(statusCode: 404, title: "Account not found"),
+            MoneyOperationStatus.AccessDenied => Problem(statusCode: 403, title: "Access denied"),
+            MoneyOperationStatus.InvalidPin => Problem(statusCode: 403, title: "Invalid PIN"),
+            MoneyOperationStatus.PinLocked => Problem(statusCode: 429, title: "PIN temporarily locked"),
+            _ => Problem(statusCode: 500, title: "Unexpected operation result"),
+        };
     }
+
+    private ObjectResult AccessProblem(AccountAccessStatus status) => status switch
+    {
+        AccountAccessStatus.AccessDenied => Problem(statusCode: 403, title: "Access denied"),
+        AccountAccessStatus.AccountNotFound => Problem(statusCode: 404, title: "Account not found"),
+        _ => Problem(statusCode: 500, title: "Unexpected account result"),
+    };
 }

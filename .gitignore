@@ -1,0 +1,11 @@
+**/bin/
+**/obj/
+.idea/
+.vs/
+.agents/
+.codex/
+TestResults/
+.env
+.env.*
+!.env.example
+*.DotSettings.user

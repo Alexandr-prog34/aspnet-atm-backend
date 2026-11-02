@@ -8,5 +8,5 @@ public abstract record WithdrawResult
 
     public sealed record InsufficientFunds : WithdrawResult;
 
-    public sealed record InvalidPin : WithdrawResult;
+    public sealed record InvalidAmount : WithdrawResult;
 }

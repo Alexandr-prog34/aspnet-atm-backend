@@ -9,22 +9,24 @@ namespace Itmo.ObjectOrientedProgramming.Lab5.Application.Application.UseCases.O
 public sealed class GetHistoryService
 {
     private readonly ITransactionRepository _transactions;
+    private readonly IAccountRepository _accounts;
 
-    public GetHistoryService(ITransactionRepository transactions)
+    public GetHistoryService(ITransactionRepository transactions, IAccountRepository accounts)
     {
         _transactions = transactions;
+        _accounts = accounts;
     }
 
-    public async Task<IReadOnlyList<TransactionDto>> GetByAccountAsync(
-        string rawAccountNumber,
+    public async Task<AccountAccessResult<IReadOnlyList<TransactionDto>>> GetAsync(
+        string ownerSubject, int offset, int limit,
         CancellationToken ct = default)
     {
-        var number = new AccountNumber(rawAccountNumber);
+        Account? account = await _accounts.GetByOwnerSubjectAsync(ownerSubject, ct);
+        if (account is null) return new(AccountAccessStatus.AccountNotFound);
+        IReadOnlyList<Transaction> list = await _transactions.GetByAccountAsync(account.Key, offset, limit, ct);
 
-        IReadOnlyCollection<Transaction> list = await _transactions.GetByAccountAsync(number, ct);
-
-        return list
+        return new(AccountAccessStatus.Success, list
             .Select(tx => tx.AsDto())
-            .ToArray();
+            .ToArray());
     }
 }

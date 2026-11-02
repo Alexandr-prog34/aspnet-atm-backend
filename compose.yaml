@@ -1,0 +1,98 @@
+services:
+  atm-postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${ATM_DB_NAME}
+      POSTGRES_USER: ${ATM_DB_USER}
+      POSTGRES_PASSWORD: ${ATM_DB_PASSWORD}
+    volumes:
+      - atm_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 15
+
+  keycloak-postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${KEYCLOAK_DB_NAME}
+      POSTGRES_USER: ${KEYCLOAK_DB_USER}
+      POSTGRES_PASSWORD: ${KEYCLOAK_DB_PASSWORD}
+    volumes:
+      - keycloak_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 15
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.4.0
+    command: ["start-dev", "--import-realm"]
+    ports:
+      - "127.0.0.1:8081:8080"
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://${KEYCLOAK_DB_HOST}:5432/${KEYCLOAK_DB_NAME}
+      KC_DB_USERNAME: ${KEYCLOAK_DB_USER}
+      KC_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD}
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN_USER}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+      KC_HOSTNAME: ${KEYCLOAK_PUBLIC_URL}
+      KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
+      KC_HTTP_ENABLED: "true"
+    volumes:
+      - ./keycloak/realm.json:/opt/keycloak/data/import/realm.json:ro
+    depends_on:
+      keycloak-postgres:
+        condition: service_healthy
+
+  keycloak-bootstrap:
+    image: quay.io/keycloak/keycloak:26.4.0
+    entrypoint: ["/bin/sh", "/bootstrap/bootstrap-keycloak.sh"]
+    environment:
+      KEYCLOAK_ADMIN_USER: ${KEYCLOAK_ADMIN_USER}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+      KEYCLOAK_REALM: ${KEYCLOAK_REALM}
+      KEYCLOAK_CLIENT_ID: ${KEYCLOAK_CLIENT_ID}
+      KEYCLOAK_INTERNAL_URL: ${KEYCLOAK_INTERNAL_URL}
+      ATM_TEST_USER_NAME: ${ATM_TEST_USER_NAME}
+      ATM_TEST_USER_PASSWORD: ${ATM_TEST_USER_PASSWORD}
+      ATM_TEST_ADMIN_NAME: ${ATM_TEST_ADMIN_NAME}
+      ATM_TEST_ADMIN_PASSWORD: ${ATM_TEST_ADMIN_PASSWORD}
+    volumes:
+      - ./scripts/bootstrap-keycloak.sh:/bootstrap/bootstrap-keycloak.sh:ro
+    depends_on:
+      keycloak:
+        condition: service_started
+    restart: "no"
+
+  api:
+    build: .
+    ports:
+      - "127.0.0.1:8080:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      DB_HOST: ${ATM_DB_HOST}
+      DB_NAME: ${ATM_DB_NAME}
+      DB_USER: ${ATM_DB_USER}
+      DB_PASSWORD: ${ATM_DB_PASSWORD}
+      KEYCLOAK_PUBLIC_URL: ${KEYCLOAK_PUBLIC_URL}
+      KEYCLOAK_INTERNAL_URL: ${KEYCLOAK_INTERNAL_URL}
+      KEYCLOAK_REALM: ${KEYCLOAK_REALM}
+      KEYCLOAK_CLIENT_ID: ${KEYCLOAK_CLIENT_ID}
+    depends_on:
+      atm-postgres:
+        condition: service_healthy
+      keycloak-bootstrap:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:8080/health/ready"]
+      interval: 10s
+      timeout: 3s
+      retries: 15
+
+volumes:
+  atm_postgres_data:
+  keycloak_postgres_data:

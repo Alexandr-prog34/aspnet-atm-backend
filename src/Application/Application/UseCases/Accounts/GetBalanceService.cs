@@ -9,21 +9,15 @@ namespace Itmo.ObjectOrientedProgramming.Lab5.Application.Application.UseCases.A
 public sealed class GetBalanceService
 {
     private readonly IAccountRepository _accounts;
+    public GetBalanceService(IAccountRepository accounts) => _accounts = accounts;
 
-    public GetBalanceService(IAccountRepository accounts)
-    {
-        _accounts = accounts;
-    }
-
-    public async Task<AccountDto?> GetByNumberAsync(
-        string rawAccountNumber,
+    public async Task<AccountAccessResult<AccountDto>> GetAsync(
+        string ownerSubject,
         CancellationToken ct = default)
     {
-        var number = new AccountNumber(rawAccountNumber);
+        Account? account = await _accounts.GetByOwnerSubjectAsync(ownerSubject, ct);
+        if (account is null) return new(AccountAccessStatus.AccountNotFound);
 
-        Account? account = await _accounts.GetByNumberAsync(number, ct);
-        if (account is null) return null;
-
-        return account.AsDto();
+        return new(AccountAccessStatus.Success, account.AsDto());
     }
 }

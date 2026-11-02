@@ -7,6 +7,10 @@ public sealed class Transaction
 {
     public Guid Id { get; }
 
+    public Guid OperationId { get; }
+
+    public Guid AccountKey { get; }
+
     public AccountNumber AccountNumber { get; }
 
     public TransactionType Type { get; }
@@ -19,6 +23,8 @@ public sealed class Transaction
 
     public Transaction(
         Guid id,
+        Guid operationId,
+        Guid accountKey,
         AccountNumber accountNumber,
         TransactionType type,
         Money amount,
@@ -26,6 +32,8 @@ public sealed class Transaction
         Money balanceAfter)
     {
         Id = id;
+        OperationId = operationId;
+        AccountKey = accountKey;
         AccountNumber = accountNumber;
         Type = type;
         Amount = amount;

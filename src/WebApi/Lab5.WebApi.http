@@ -1,6 +1,52 @@
-@Lab5.WebApi_HostAddress = http://localhost:5067
+# Войти через http://localhost:8080/swagger (Authorize, Keycloak + PKCE),
+# затем подставить access tokens и sub пользователя ниже.
+# Пароли и настоящие токены в этот файл не сохранять.
+@api = http://localhost:8080
+@adminToken = paste-admin-access-token
+@userToken = paste-user-access-token
+@userSub = paste-user-sub
+@accountNumber = 40817810000000000001
 
-GET {{Lab5.WebApi_HostAddress}}/weatherforecast/
-Accept: application/json
+### Готовность API и PostgreSQL
+GET {{api}}/health/ready
 
-###
+### Администратор создаёт счёт для пользователя Keycloak
+POST {{api}}/api/accounts
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "accountNumber": "{{accountNumber}}",
+  "ownerSubject": "{{userSub}}",
+  "pin": "1234",
+  "initialBalance": 100.00
+}
+
+### Пользователь читает баланс своего счёта
+GET {{api}}/api/accounts/me/balance
+Authorization: Bearer {{userToken}}
+
+### Пополнение: PIN не нужен
+POST {{api}}/api/accounts/me/deposits
+Authorization: Bearer {{userToken}}
+Idempotency-Key: demo-deposit-001
+Content-Type: application/json
+
+{
+  "amount": 25.50
+}
+
+### Снятие: нужен PIN
+POST {{api}}/api/accounts/me/withdrawals
+Authorization: Bearer {{userToken}}
+Idempotency-Key: demo-withdrawal-001
+Content-Type: application/json
+
+{
+  "amount": 10.00,
+  "pin": "1234"
+}
+
+### История операций
+GET {{api}}/api/accounts/me/transactions?offset=0&limit=20
+Authorization: Bearer {{userToken}}

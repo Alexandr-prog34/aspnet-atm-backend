@@ -12,10 +12,14 @@ public static class TransactionMapping
         {
             TransactionType.Deposit => "Deposit",
             TransactionType.Withdrawal => "Withdrawal",
+            TransactionType.Opening => "Opening",
+            TransactionType.TransferOut => "TransferOut",
+            TransactionType.TransferIn => "TransferIn",
             _ => "Unknown",
         };
         return new TransactionDto(
             transaction.Id,
+            transaction.OperationId,
             transaction.AccountNumber.Value,
             typeText,
             transaction.Amount.Amount,

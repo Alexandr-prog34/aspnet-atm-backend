@@ -5,7 +5,6 @@ namespace Itmo.ObjectOrientedProgramming.Lab5.Application.Abstractions;
 
 public interface ITransactionRepository
 {
-    Task AddAsync(Transaction transaction, CancellationToken ct = default);
-
-    Task<IReadOnlyCollection<Transaction>> GetByAccountAsync(AccountNumber number, CancellationToken ct = default);
+    Task<IReadOnlyList<Transaction>> GetByAccountAsync(Guid accountKey, int offset, int limit,
+        CancellationToken ct = default);
 }

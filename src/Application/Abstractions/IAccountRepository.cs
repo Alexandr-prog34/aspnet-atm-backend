@@ -7,5 +7,11 @@ public interface IAccountRepository
 {
     Task<Account?> GetByNumberAsync(AccountNumber number, CancellationToken ct = default);
 
-    Task AddAsync(Account account, CancellationToken ct = default);
+    Task<Account?> GetByKeyAsync(Guid key, CancellationToken ct = default);
+
+    Task<Account?> GetByOwnerSubjectAsync(string subject, CancellationToken ct = default);
+
+    Task<bool> SetOwnerAsync(Guid key, string subject, CancellationToken ct = default);
+
+    Task<bool> CreateAsync(Account account, Transaction? openingTransaction, CancellationToken ct = default);
 }

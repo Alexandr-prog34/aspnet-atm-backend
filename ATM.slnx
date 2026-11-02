@@ -1,0 +1,8 @@
+<Solution>
+  <Project Path="src/Domain/Lab5.Domain.csproj" />
+  <Project Path="src/Application/Lab5.Application.csproj" />
+  <Project Path="src/Infrastructure/Lab5.Infrastructure.csproj" />
+  <Project Path="src/WebApi/Lab5.WebApi.csproj" />
+  <Project Path="tests/ATM.UnitTests/ATM.UnitTests.csproj" />
+  <Project Path="tests/ATM.IntegrationTests/ATM.IntegrationTests.csproj" />
+</Solution>

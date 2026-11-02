@@ -1,3 +1,5 @@
 namespace Itmo.ObjectOrientedProgramming.Lab5.WebApi.Models.Requests;
 
-public record WithdrawRequest(decimal Amount);
+using System.ComponentModel.DataAnnotations;
+
+public record WithdrawRequest(decimal Amount, [Required, MaxLength(128)] string Pin);

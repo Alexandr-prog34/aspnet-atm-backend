@@ -1,0 +1,40 @@
+{
+  "realm": "atm",
+  "enabled": true,
+  "displayName": "ATM Backend",
+  "roles": {
+    "realm": [
+      { "name": "user", "description": "Own account banking operations" },
+      { "name": "admin", "description": "Account administration" }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "atm-api",
+      "name": "ATM API Swagger",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": ["http://localhost:8080/swagger/oauth2-redirect.html", "http://127.0.0.1:8765/callback"],
+      "webOrigins": ["http://localhost:8080"],
+      "attributes": { "pkce.code.challenge.method": "S256" },
+      "defaultClientScopes": ["web-origins", "acr", "basic", "profile", "roles", "email"],
+      "protocolMappers": [
+        {
+          "name": "atm-api-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "atm-api",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
+        }
+      ]
+    }
+  ]
+}
